@@ -1,0 +1,116 @@
+-- Define the table to be created or updated
+config {
+  type: "incremental",
+  schema: "cm360_programmatic_AO",
+  name: "Prog_AO_Defined_dataform",
+  partitions: ["Date"]
+}
+
+-- Define rates CTE
+DECLARE rates AS (
+  SELECT 
+    rate_name, 
+    rate_value 
+  FROM ${ref("rates_table")}
+);
+
+-- Define funnel_data CTE
+DECLARE funnel_data AS (
+  SELECT 
+    Date,
+    Campaign__Campaign_Manager_360,
+    Placement__Campaign_Manager_360,
+    Creative_Type__Campaign_Manager_360,
+    Creative__Campaign_Manager_360,
+    Activity__Campaign_Manager_360,
+    SUM(Clicks__Campaign_Manager_360) AS Total_Clicks,
+    SUM(Impressions__Campaign_Manager_360) AS Total_Impressions,
+    SUM(DBM_Cost_Account_Currency__Campaign_Manager_360) AS Media_Gross,
+    SUM(Prog_Hard_Leads) AS Prog_Hard_Leads,
+    SUM(Prog_Soft_Leads) AS Prog_Soft_Leads
+  FROM ${ref("funnel_data")}
+  GROUP BY 
+    Date, 
+    Campaign__Campaign_Manager_360, 
+    Placement__Campaign_Manager_360, 
+    Creative_Type__Campaign_Manager_360, 
+    Creative__Campaign_Manager_360, 
+    Activity__Campaign_Manager_360
+);
+
+-- Main SELECT query
+SELECT 
+  f.Date,
+  f.Campaign__Campaign_Manager_360,
+  f.Placement__Campaign_Manager_360,
+  f.Creative_Type__Campaign_Manager_360,
+  f.Creative__Campaign_Manager_360,
+  f.Activity__Campaign_Manager_360,
+  f.Total_Clicks,
+  f.Total_Impressions,
+  f.Media_Gross,
+  f.Prog_Hard_Leads,
+  f.Prog_Soft_Leads,
+  (
+
+--Ad Serving Fee
+    CASE
+      WHEN f.Creative_Type__Campaign_Manager_360 = 'Rich Media display banner' THEN 
+        f.Total_Impressions * (SELECT r.rate_value FROM rates r WHERE r.rate_name = 'ad_serving_advanced') / 1000
+      ELSE 0
+    END +
+    CASE
+      WHEN f.Creative_Type__Campaign_Manager_360 IN ('Rich Media display banner', 'Display') THEN 
+        f.Total_Impressions * (SELECT r.rate_value FROM rates r WHERE r.rate_name = 'ad_serving_display') / 1000
+      ELSE 0
+    END
+  ) AS Ad_serving_cost,
+
+-- Ad Verification Cost
+  f.Total_Impressions * (SELECT r.rate_value FROM rates r WHERE r.rate_name = 'ad_verification_rate') / 1000 AS Ad_verification_cost,
+
+ -- Handling Fee
+  (
+    (f.Total_Impressions * (SELECT r.rate_value FROM rates r WHERE r.rate_name = 'ad_verification_rate') / 1000) + f.Media_Gross
+  ) / (1 - (SELECT r.rate_value FROM rates r WHERE r.rate_name = 'Programmatic_handling_fee')) *
+  (SELECT r.rate_value FROM rates r WHERE r.rate_name = 'Programmatic_handling_fee') AS Handling_Fee,
+
+-- Cost to Client
+  (
+    f.Media_Gross +
+    f.Total_Impressions * (SELECT r.rate_value FROM rates r WHERE r.rate_name = 'ad_verification_rate') / 1000 +
+    (
+      (f.Total_Impressions * (SELECT r.rate_value FROM rates r WHERE r.rate_name = 'ad_verification_rate') / 1000) + f.Media_Gross
+    ) / (1 - (SELECT r.rate_value FROM rates r WHERE r.rate_name = 'Programmatic_handling_fee')) *
+    (SELECT r.rate_value FROM rates r WHERE r.rate_name = 'Programmatic_handling_fee') +
+    (
+      CASE
+        WHEN f.Creative_Type__Campaign_Manager_360 = 'Rich Media display banner' THEN 
+          f.Total_Impressions * (SELECT r.rate_value FROM rates r WHERE r.rate_name = 'ad_serving_advanced') / 1000
+        ELSE 0
+      END +
+      CASE
+        WHEN f.Creative_Type__Campaign_Manager_360 IN ('Rich Media display banner', 'Display') THEN 
+          f.Total_Impressions * (SELECT r.rate_value FROM rates r WHERE r.rate_name = 'ad_serving_display') / 1000
+        ELSE 0
+      END
+    )
+  ) * 1.001001 AS Cost_to_Client,
+
+-- Creative Model Mapping
+  CASE
+    WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%i10%' THEN 'i10'
+    WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%i20%' THEN 'i20'
+    WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%i30%' THEN 'i30'
+    WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%kona range%' THEN 'KONA Range'
+    WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%kona_ev%' THEN 'KONA EV'
+    WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%konaev%' THEN 'KONA EV Non-offer'
+    WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%bayon%' THEN 'BAYON'
+    WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%tucson%' THEN 'TUCSON'
+    WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%ioniq5%' THEN 'IONIQ 5&6'
+    WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%ioniq_5%' THEN 'IONIQ 5'
+    WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%ioniq_6%' THEN 'IONIQ 6'
+    WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%santa%' THEN 'SANTA FE'
+    ELSE NULL
+  END AS Creative_model
+FROM funnel_data f;

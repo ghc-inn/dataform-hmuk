@@ -1,0 +1,86 @@
+-- Declare the dataset and table name for insertion
+config {
+  type: "incremental",
+  schema: "cm360_hl_ptc",
+  name: "hl_ptc_defined_dataform",
+  uniqueKey: "Conversion_ID"
+}
+
+-- Incremental logic: Only process new data
+DECLARE max_activity_date DATE DEFAULT (
+  SELECT 
+    COALESCE(MAX(SAFE_CAST(Activity_DateTime AS DATE)), DATE("1900-01-01"))
+  FROM
+    ${ref("hl_ptc_defined")}
+);
+
+
+
+
+SELECT
+  Conversion_ID,
+  SAFE_CAST(Activity_DateTime AS DATE) AS Activity_DateTime,
+  Campaign,
+  SAFE_CAST(Interaction_DateTime AS DATE) AS Interaction_DateTime,
+  SAFE_CAST(Interaction_Number AS INT64) AS Interaction_Number,
+  Placement,
+  CAST(Total_Conversions AS INT64) AS Total_Conversions,
+  CASE
+    WHEN Placement LIKE '%Hyundai - UK%' THEN 'Paid search'
+    WHEN Placement LIKE '%Hyundai UK - %' THEN 'Paid search'
+    WHEN Placement LIKE '%Hyundai - MPG%' THEN 'Paid search'
+    WHEN LOWER(Placement) LIKE '%retailer%' THEN 'Retailer'
+    WHEN LOWER(Placement) LIKE '%kargo%' THEN 'Kargo'
+    WHEN LOWER(Placement) LIKE '%havas%' THEN 'Havas'
+    WHEN LOWER(Placement) LIKE '%google%' THEN 'DV360'
+    WHEN LOWER(Placement) LIKE '%openexchange%' THEN 'DV360'
+    WHEN LOWER(Placement) LIKE '%youtube%' THEN 'Youtube'
+    WHEN LOWER(Placement) LIKE '%amazon%' THEN 'Amazon'
+    WHEN LOWER(Placement) LIKE '%jwp%' THEN 'JWPlayer'
+    WHEN LOWER(Placement) LIKE '%gumgum%' THEN 'GumGum'
+    WHEN LOWER(Placement) LIKE '%gumtree%' THEN 'Gumtree'
+    WHEN LOWER(Placement) LIKE '%mediadrive%' THEN 'Mediadrive'
+    WHEN LOWER(Placement) LIKE '%loop me%' THEN 'Loopme'
+    WHEN LOWER(Placement) LIKE '%loopme%' THEN 'Loopme'
+    WHEN LOWER(Placement) LIKE '%heycar%' THEN 'Heycar'
+    WHEN LOWER(Placement) LIKE '%haymarket%' THEN 'Haymarket'
+    WHEN LOWER(Placement) LIKE '%autovia%' THEN 'Autovia'
+    WHEN LOWER(Placement) LIKE '%dv360%' THEN 'DV360'
+    WHEN LOWER(Placement) LIKE '%quantcast%' THEN 'Quantcast'
+    WHEN LOWER(Placement) LIKE '%reddit%' THEN 'Reddit'
+    WHEN LOWER(Placement) LIKE '%meta%' THEN 'Meta'
+    WHEN LOWER(Placement) LIKE '%teads%' THEN 'Teads'
+    WHEN LOWER(Placement) LIKE '%carwow%' THEN 'Carwow'
+    WHEN LOWER(Placement) LIKE '%triplelift%' THEN 'DV360'
+    WHEN LOWER(Placement) LIKE '%autotrader%' THEN 'Autotrader'
+    ELSE 'other'
+  END AS Publisher,
+  CASE
+    WHEN Publisher IN (
+      'Youtube', 'Amazon', 'JWPlayer', 'GumGum', 'Mediadrive', 'Loopme',
+      'Haymarket', 'Autotrader', 'Autovia', 'Paid search', 'DV360',
+      'HeyCar', 'Teads', 'Carwow', 'Retailer', 'Gumtree', 'Kargo', 'Havas'
+    )
+    AND SAFE_CAST(Interaction_Number AS INT64) = 1 THEN 1
+    ELSE 0
+  END AS Last_Touch,
+  CASE
+    WHEN Publisher IN (
+      'Youtube', 'Amazon', 'JWPlayer', 'GumGum', 'Mediadrive', 'Loopme',
+      'Haymarket', 'Autotrader', 'Autovia', 'Paid search', 'DV360',
+      'Havas', 'Heycar', 'Teads', 'Carwow', 'Retailer', 'Gumtree', 'Kargo'
+    ) THEN 1
+    ELSE 0
+  END AS Last_touch_and_assisted,
+  CASE
+    WHEN Publisher = 'Paid search' AND SAFE_CAST(Interaction_Number AS INT64) = 1 THEN 1
+    ELSE 0
+  END AS Paid_search_Last_touch,
+  CASE
+    WHEN Publisher = 'DV360' THEN 1
+    ELSE 0
+  END AS DV360_Last_touch_assisted
+FROM
+  ${ref("funnel_data")}
+WHERE
+  SAFE_CAST(Activity_DateTime AS DATE) > max_activity_date;

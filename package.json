@@ -1,0 +1,6 @@
+{
+  "name": "hmuk-dev", 
+  "dependencies": {
+    "@dataform/core": "3.0.0"
+  }
+}
