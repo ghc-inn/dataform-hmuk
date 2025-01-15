@@ -3,7 +3,6 @@ config {
   type: "incremental",
   schema: "cm360_programmatic_AO",
   name: "Prog_AO_Defined_dataform",
-  partitions: ["Date"]
 }
 
 -- Define rates CTE
@@ -11,7 +10,8 @@ DECLARE rates AS (
   SELECT 
     rate_name, 
     rate_value 
-  FROM ${ref("rates_table")}
+  FROM 
+    hmuk-dev.cm360_programmatic_AO.rates_table
 );
 
 -- Define funnel_data CTE
@@ -28,7 +28,8 @@ DECLARE funnel_data AS (
     SUM(DBM_Cost_Account_Currency__Campaign_Manager_360) AS Media_Gross,
     SUM(Prog_Hard_Leads) AS Prog_Hard_Leads,
     SUM(Prog_Soft_Leads) AS Prog_Soft_Leads
-  FROM ${ref("funnel_data")}
+  FROM 
+    hmuk-dev.cm360_programmatic_AO.funnel_data
   GROUP BY 
     Date, 
     Campaign__Campaign_Manager_360, 
@@ -113,4 +114,4 @@ SELECT
     WHEN LOWER(f.Creative__Campaign_Manager_360) LIKE '%santa%' THEN 'SANTA FE'
     ELSE NULL
   END AS Creative_model
-FROM funnel_data f;
+FROM funnel_data f

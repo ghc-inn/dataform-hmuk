@@ -3,7 +3,6 @@ config {
   type: "incremental",
   schema: "cm360_hl_ptc",
   name: "hl_ptc_defined_dataform",
-  uniqueKey: "Conversion_ID"
 }
 
 -- Incremental logic: Only process new data
@@ -11,7 +10,7 @@ DECLARE max_activity_date DATE DEFAULT (
   SELECT 
     COALESCE(MAX(SAFE_CAST(Activity_DateTime AS DATE)), DATE("1900-01-01"))
   FROM
-    ${ref("hl_ptc_defined")}
+  hmuk-dev.cm360_hl_ptc.hl_ptc_defined
 );
 
 
@@ -81,6 +80,6 @@ SELECT
     ELSE 0
   END AS DV360_Last_touch_assisted
 FROM
-  ${ref("funnel_data")}
+  hmuk-dev.cm360_hl_ptc.funnel_data
 WHERE
-  SAFE_CAST(Activity_DateTime AS DATE) > max_activity_date;
+  SAFE_CAST(Activity_DateTime AS DATE) > max_activity_date

@@ -3,7 +3,6 @@ config {
   type: "incremental",
   schema: "cm360_hl_ptc",
   name: "hl_ptc_prog_defined_dataform",
-  uniqueKey: "Conversion_ID"
 }
 
 -- Incremental logic: Only process new data
@@ -11,7 +10,7 @@ DECLARE max_activity_date DATE DEFAULT (
   SELECT 
     COALESCE(MAX(Activity_DateTime), DATE("1900-01-01"))
   FROM
-    ${ref("hl_ptc_prog_defined")}
+    hmuk-dev.cm360_hl_ptc.hl_ptc_defined
 );
 
 SELECT
@@ -22,9 +21,9 @@ SELECT
     ELSE 0
   END AS Assisted_PPC
 FROM
-  ${ref("hl_ptc_defined")}
+    hmuk-dev.cm360_hl_ptc.hl_ptc_defined
 WHERE
   SAFE_CAST(Activity_DateTime AS DATE) > max_activity_date
 GROUP BY
   Conversion_ID,
-  Activity_DateTime;
+  Activity_DateTime
