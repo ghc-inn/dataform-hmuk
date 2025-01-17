@@ -1,0 +1,26 @@
+config {
+  type: "incremental",
+  database:"hmuk-dev",
+  schema: "cm360_hl_ptc",
+  name: "hl_ptc_prog_output",
+  bigquery: {
+    partitionBy: "Activity_DateTime"
+  }
+}
+
+
+SELECT
+  Conversion_ID,
+  SAFE_CAST(Activity_DateTime AS DATE) AS Activity_DateTime,
+  CASE
+    WHEN SUM(DV360_Last_touch_assisted) > 0 AND SUM(Paid_search_Last_touch) = 1 THEN 1
+    ELSE 0
+  END AS Assisted_PPC
+FROM ${ref("hl_ptc_output")}
+
+
+WHERE SAFE_CAST(Activity_DateTime AS DATE) > (
+  SELECT COALESCE(MAX(Activity_DateTime), DATE('1900-01-01'))
+  FROM ${ref("hl_ptc_output")}
+)
+GROUP BY Conversion_ID, Activity_DateTime
