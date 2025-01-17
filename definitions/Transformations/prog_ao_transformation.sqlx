@@ -1,0 +1,29 @@
+config {
+  type: "table",
+  database:"hmuk-dev",
+  schema: "cm360_programmatic_AO",
+  name: "prog_ao_transformed",
+  description: "Table to transform the data from cm360_progrmamatic_AO.funnel_data - grouping by campaign, placement, creative, creative type and activity - and summing KPIs for these"
+  }
+
+
+    SELECT 
+        Date,
+        Campaign,
+        Placement,
+        Creative_Type,
+        Creative,
+        Activity,
+        SUM(Clicks) AS Total_Clicks,
+        SUM(Impressions) AS Total_Impressions,
+        SUM(DBM_Cost_Account_Currency) AS Media_Gross,
+        SUM(Prog_Hard_Leads) AS Prog_Hard_Leads,
+        SUM(Prog_Soft_Leads) AS Prog_Soft_Leads
+    FROM ${ref("funnel_data")}
+    GROUP BY 
+        Date, 
+        Campaign, 
+        Placement, 
+        Creative_Type, 
+        Creative, 
+        Activity

@@ -1,0 +1,88 @@
+config {
+  type: "incremental",
+  database:"hmuk-dev",
+  schema: "cm360_programmatic_AO",
+  name: "Prog_AO_Output",
+  bigquery: {
+    partitionBy: "Date"
+  }
+}
+
+
+
+SELECT 
+    Date,
+    Campaign,
+    Placement,
+    Creative_Type,
+    Creative,
+    Activity,
+    Total_Clicks,
+    Total_Impressions,
+    Media_Gross,
+    Prog_Hard_Leads,
+    Prog_Soft_Leads,
+
+    (
+    --Ad Serving Cost
+        CASE
+        WHEN Creative_Type = 'Rich Media display banner' THEN 
+            Total_Impressions * 
+            (SELECT r.rate_value FROM ${ref("rates_table")} r WHERE r.rate_name = 'ad_serving_advanced') / 1000
+        ELSE 0 END) + 
+    (CASE
+        WHEN Creative_Type IN ('Rich Media display banner', 'Display') THEN 
+            Total_Impressions * 
+            (SELECT r.rate_value FROM ${ref("rates_table")} r WHERE r.rate_name = 'ad_serving_display') / 1000
+        ELSE 0 END) AS Ad_serving_cost, 
+
+    --Ad Verification Cost
+    Total_Impressions * 
+    (SELECT r.rate_value FROM ${ref("rates_table")} r WHERE r.rate_name = 'ad_verification_rate') / 1000 AS Ad_verification_cost,
+
+    -- Handling Fee
+    ((Total_Impressions * 
+      (SELECT r.rate_value FROM ${ref("rates_table")} r WHERE r.rate_name = 'ad_verification_rate') / 1000)
+    + Media_Gross) /
+    (1-(SELECT r.rate_value FROM ${ref("rates_table")} r WHERE r.rate_name = 'Programmatic_handling_fee')) *
+    (SELECT r.rate_value FROM ${ref("rates_table")} r WHERE r.rate_name = 'Programmatic_handling_fee') AS Handling_Fee,
+
+    --Cost to Client
+    (
+        Media_Gross 
+        + Total_Impressions * 
+          (SELECT r.rate_value FROM ${ref("rates_table")} r WHERE r.rate_name = 'ad_verification_rate') / 1000
+        + ((Total_Impressions * 
+            (SELECT r.rate_value FROM ${ref("rates_table")} r WHERE r.rate_name = 'ad_verification_rate') / 1000)
+        + Media_Gross) / 
+          (1-(SELECT r.rate_value FROM ${ref("rates_table")} r WHERE r.rate_name = 'Programmatic_handling_fee')) *
+          (SELECT r.rate_value FROM ${ref("rates_table")} r WHERE r.rate_name = 'Programmatic_handling_fee')
+        + (CASE
+            WHEN Creative_Type = 'Rich Media display banner' THEN 
+                Total_Impressions * 
+                (SELECT r.rate_value FROM ${ref("rates_table")} r WHERE r.rate_name = 'ad_serving_advanced') / 1000
+            ELSE 0 
+        END) + 
+        (CASE
+            WHEN Creative_Type IN ('Rich Media display banner', 'Display') THEN 
+                Total_Impressions * 
+                (SELECT r.rate_value FROM ${ref("rates_table")} r WHERE r.rate_name = 'ad_serving_display') / 1000
+            ELSE 0 
+        END)
+    ) * 1.001001 AS Cost_to_Client,
+    CASE
+        WHEN LOWER(Creative) LIKE '%i10%' THEN 'i10'
+        WHEN LOWER(Creative) LIKE '%i20%' THEN 'i20'
+        WHEN LOWER(Creative) LIKE '%i30%' THEN 'i30'
+        WHEN LOWER(Creative) LIKE '%kona range%' THEN 'KONA Range'
+        WHEN LOWER(Creative) LIKE '%kona_ev%' THEN 'KONA EV'
+        WHEN LOWER(Creative) LIKE '%konaev%' THEN 'KONA EV Non-offer'
+        WHEN LOWER(Creative) LIKE '%bayon%' THEN 'BAYON'
+        WHEN LOWER(Creative) LIKE '%tucson%' THEN 'TUCSON'
+        WHEN LOWER(Creative) LIKE '%ioniq5%' THEN 'IONIQ 5&6'
+        WHEN LOWER(Creative) LIKE '%ioniq_5%' THEN 'IONIQ 5'
+        WHEN LOWER(Creative) LIKE '%ioniq_6%' THEN 'IONIQ 6'
+        WHEN LOWER(Creative) LIKE '%santa%' THEN 'SANTA FE'
+        ELSE NULL
+    END AS Creative_model
+FROM ${ref("prog_ao_transformed")} 

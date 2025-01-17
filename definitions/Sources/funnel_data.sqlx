@@ -1,0 +1,7 @@
+config {
+  type: "declaration",
+  database:"hmuk-dev",
+  schema: "cm360_programmatic_AO",
+  name: "funnel_data",
+  description:"The raw data from the programmatic Programmatic_AO in funnel"
+}
